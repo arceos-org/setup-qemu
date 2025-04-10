@@ -1,0 +1,77 @@
+name: Test
+on: [push, pull_request]
+
+jobs:
+  test_install_single:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [x86_64, aarch64, riscv64]
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup QEMU
+      uses: ./
+      with:
+        version: 9.2.3
+        arch_list: ${{ matrix.arch }}
+    - name: Check QEMU installation
+      run: |
+        qemu-system-${{ matrix.arch }} --version
+      shell: bash
+
+  test_install_multiple:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup QEMU
+      uses: ./
+      with:
+        version: 9.2.3
+        arch_list: x86_64,aarch64,riscv64
+    - name: Check QEMU installation
+      run: |
+        qemu-system-x86_64 --version
+        qemu-system-aarch64 --version
+        qemu-system-riscv64 --version
+      shell: bash
+
+  test_run_something:
+    runs-on: ubuntu-latest
+    env:
+      TESTEE: https://github.com/aarkegz/os-multiboot-minimal-example.git
+      TESTEE_BRANCH: master
+      TESTEE_COMMAND: make PREFIX=x86_64-linux-musl- run
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+    - name: Setup QEMU
+      id: setup-qemu
+      uses: ./
+      with:
+        version: 9.2.3
+        arch_list: x86_64
+    - name: Setup musl
+      uses: arceos-org/setup-musl@v0.1
+      with:
+        arch: x86_64
+    - name: Check tools
+      run: |
+        qemu-system-x86_64 --version
+        x86_64-linux-musl-gcc --version
+      shell: bash
+    - name: Clone testee
+      run: |
+        git clone $TESTEE testee
+        cd testee
+        git checkout $TESTEE_BRANCH
+        cd ..
+      shell: bash
+    - name: Run testee
+      run: |
+        cd testee
+        ${TESTEE_COMMAND}
+        cd ..
+      shell: bash

@@ -1,0 +1,80 @@
+name: Download and build QEMU
+description: |
+  Download, build, and install QEMU for the specified architectures of the specified version.
+author: "equation314"
+branding:
+  color: "green"
+  icon: "download"
+
+inputs:
+  version:
+    description: 'QEMU version'
+    required: true
+    type: string
+  arch_list:
+    description: 'Architectures to be installed, comma separated if multiple.'
+    required: false
+    type: string
+    default: 'x86_64,riscv64,aarch64'
+
+runs:
+  using: "composite"
+  steps:
+  - name: Build cache key
+    run: |
+      : build cache key
+      IFS=',' read -ra ARCH <<< "${{ inputs.arch_list }}"
+      for i in "${ARCH[@]}"; do
+        CACHE_KEY+=${i}-
+      done
+      CACHE_KEY=qemu-${{ inputs.version }}-${CACHE_KEY}slirp-1
+      echo "CACHE_KEY=${CACHE_KEY}" >> $GITHUB_ENV
+    shell: bash
+  - name: Cache QEMU
+    id: cache-qemu
+    uses: actions/cache/restore@v4
+    with:
+      path: qemu_build
+      key: ${{ env.CACHE_KEY }}
+  - name: Download and build QEMU
+    if: steps.cache-qemu.outputs.cache-hit != 'true'
+    env:
+      QEMU_PATH: qemu-${{ inputs.version }}
+      PREFIX: ${{ github.workspace }}/qemu_build
+    shell: bash
+    run: |
+      : build QEMU
+      # Install dependencies
+      sudo apt-get update && sudo apt-get install -y ninja-build libslirp-dev libglib2.0-dev
+
+      # Split, prepend and re-join the architectures
+      IFS=',' read -ra ARCH <<< "${{ inputs.arch_list }}"
+      for i in "${ARCH[@]}"; do
+        TARGET_LIST+=${i}-softmmu,
+      done
+      TARGET_LIST=${TARGET_LIST::-1}
+
+      # Download and build QEMU
+      wget https://download.qemu.org/$QEMU_PATH.tar.xz && tar -xJf $QEMU_PATH.tar.xz
+      cd $QEMU_PATH \
+        && ./configure --prefix=$PREFIX --target-list=$TARGET_LIST --enable-slirp \
+        && make -j > /dev/null 2>&1 \
+        && make install
+  - uses: actions/cache/save@v4
+    if: steps.cache-qemu.outputs.cache-hit != 'true'
+    with:
+      path: qemu_build
+      key: ${{ env.CACHE_KEY }}
+
+  - name: Install QEMU
+    shell: bash
+    run: |
+      echo "$PWD/qemu_build/bin" >> $GITHUB_PATH
+  - name: Verify installation
+    shell: bash
+    run: |
+      : Verify installation
+      IFS=',' read -ra ARCH <<< "${{ inputs.arch_list }}"
+      for i in "${ARCH[@]}"; do
+        qemu-system-${i} --version
+      done
