@@ -7,7 +7,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        arch: [x86_64, aarch64, riscv64]
+        arch: [x86_64, aarch64, riscv64, loongarch64]
     steps:
     - name: Checkout
       uses: actions/checkout@v4
@@ -54,7 +54,7 @@ jobs:
         version: 9.2.3
         arch_list: x86_64
     - name: Setup musl
-      uses: arceos-org/setup-musl@v0.1
+      uses: arceos-org/setup-musl@v1
       with:
         arch: x86_64
     - name: Check tools
